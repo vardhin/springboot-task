@@ -1,0 +1,6 @@
+com/example/webhooktask/WebhookTaskApplication.class
+com/example/webhooktask/runner/WebhookRunner.class
+com/example/webhooktask/dto/WebhookResponse.class
+com/example/webhooktask/service/WebhookService.class
+com/example/webhooktask/dto/SolutionRequest.class
+com/example/webhooktask/dto/WebhookRequest.class
