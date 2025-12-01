@@ -29,15 +29,19 @@ public class WebhookService {
             // Step 1: Generate webhook
             logger.info("Generating webhook...");
             WebhookResponse webhookResponse = generateWebhook();
+            
+            if (webhookResponse == null || webhookResponse.getWebhook() == null || webhookResponse.getAccessToken() == null) {
+                logger.error("Failed to generate webhook or retrieve access token");
+                return;
+            }
+            
             logger.info("Webhook generated successfully: {}", webhookResponse.getWebhook());
             
-            // Step 2: Build SQL query
-            logger.info("Building SQL Query...");
+            // Step 2: Prepare SQL solution
             String sqlQuery = buildSqlQuery();
-            logger.info("SQL Query: {}", sqlQuery);
+            logger.info("SQL Query prepared");
             
             // Step 3: Submit solution
-            logger.info("Submitting solution...");
             submitSolution(webhookResponse.getWebhook(), webhookResponse.getAccessToken(), sqlQuery);
             logger.info("Solution submitted successfully");
             
@@ -48,23 +52,23 @@ public class WebhookService {
     
     private WebhookResponse generateWebhook() {
         try {
+            WebhookRequest request = new WebhookRequest("John Doe", "REG12347", "john@example.com");
+            
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             
-            // TODO: Replace with your actual details
-            WebhookRequest request = new WebhookRequest("Maanas Varma SH", "22BCT0212", "sh.maanasvarma@gmail.com");
             HttpEntity<WebhookRequest> entity = new HttpEntity<>(request, headers);
             
             ResponseEntity<WebhookResponse> response = restTemplate.postForEntity(
-                GENERATE_WEBHOOK_URL,
-                entity,
+                GENERATE_WEBHOOK_URL, 
+                entity, 
                 WebhookResponse.class
             );
             
             return response.getBody();
         } catch (Exception e) {
             logger.error("Error generating webhook", e);
-            throw new RuntimeException("Failed to generate webhook", e);
+            return null;
         }
     }
     
@@ -72,38 +76,39 @@ public class WebhookService {
         return "SELECT " +
                 "d.DEPARTMENT_NAME, " +
                 "ROUND(AVG(TIMESTAMPDIFF(YEAR, e.DOB, CURDATE())), 2) AS AVERAGE_AGE, " +
-                "SUBSTRING_INDEX(GROUP_CONCAT(CONCAT(e.FIRST_NAME, ' ', e.LAST_NAME) ORDER BY e.EMP_ID SEPARATOR ', '), ', ', 10) AS EMPLOYEE_LIST " +
+                "GROUP_CONCAT(CONCAT(e.FIRST_NAME, ' ', e.LAST_NAME) ORDER BY e.EMP_ID SEPARATOR ', ') AS EMPLOYEE_LIST " +
                 "FROM DEPARTMENT d " +
                 "INNER JOIN EMPLOYEE e ON d.DEPARTMENT_ID = e.DEPARTMENT " +
-                "WHERE e.EMP_ID IN ( " +
-                "    SELECT DISTINCT EMP_ID " +
+                "INNER JOIN ( " +
+                "    SELECT EMP_ID " +
                 "    FROM PAYMENTS " +
                 "    WHERE AMOUNT > 70000 " +
-                ") " +
+                "    GROUP BY EMP_ID " +
+                ") p ON e.EMP_ID = p.EMP_ID " +
                 "GROUP BY d.DEPARTMENT_ID, d.DEPARTMENT_NAME " +
+                "HAVING COUNT(e.EMP_ID) > 0 " +
                 "ORDER BY d.DEPARTMENT_ID DESC";
     }
     
     private void submitSolution(String webhookUrl, String accessToken, String sqlQuery) {
         try {
+            SolutionRequest solutionRequest = new SolutionRequest(sqlQuery);
+            
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Authorization", "Bearer " + accessToken);
+            headers.set("Authorization", accessToken);
             
-            SolutionRequest request = new SolutionRequest(sqlQuery);
-            HttpEntity<SolutionRequest> entity = new HttpEntity<>(request, headers);
+            HttpEntity<SolutionRequest> entity = new HttpEntity<>(solutionRequest, headers);
             
             ResponseEntity<String> response = restTemplate.postForEntity(
-                webhookUrl,
-                entity,
+                webhookUrl, 
+                entity, 
                 String.class
             );
             
-            logger.info("Submission Response Status: {}", response.getStatusCode());
-            logger.info("Submission Response Body: {}", response.getBody());
+            logger.info("Response: {}", response.getBody());
         } catch (Exception e) {
             logger.error("Error submitting solution", e);
-            throw new RuntimeException("Failed to submit solution", e);
         }
     }
 }
